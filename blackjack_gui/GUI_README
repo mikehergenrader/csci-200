@@ -1,0 +1,906 @@
+Michael Hergenrader
+CSCI 200 Fall 2009
+10/11/09
+USCID: 5048471246
+HW3: Blackjack GUI program
+
+NOTE: This readme file includes everything about the program's GUI classes.
+For information about the non-GUI classes of this program, see the README.
+
+Files included in this program:
+
+.JAVA files
+BetInputDialog.java *
+Blackjack.java
+BlackJackFrame.java 
+BlackJackGUICard.java 
+BlackJackHand.java 
+BlackJackIntroDialog.java
+BlackJackPlayer.java 
+BlackJackSplashScreenDialog.java 
+Card.java 
+ClosingListener.java 
+Deck.java 
+GameCommandsPanel.java
+GameTablePanel.java 
+Hand.java 
+HandResultsDialog.java 
+MessagesPanel.java 
+PlayerDisplayPanel.java 
+PlayerIngameDataPanel.java
+PlayerInputPanel.java 
+PlayerRegistrationDialog.java
+PlayerRegistrationFrame.java * (see Testing section)
+
+* = included in this README discussion
+
+Images:
+yellowchip.jpg
+bluechip.jpg
+orangechip.jpg
+redchip.jpg
+whitechip.jpg
+blackchip.jpg
+michaels_blackjack_table.jpg
+blackjack_icon.gif
+blackjack.jpg
+
+
+Program Design:
+-----------------------------------------------------------------
+
+The BetInputDialog.java file:
+---------------------------------
+
+This is a rather simple class that obtains the action the player would like to take in the upcoming round of Blackjack. He can
+either place a bet that is less than or equal to the amount of money he has, or he can skip the current hand. The result of
+this dialog is passed back to BlackJackFrame to either set his bet and give him cards, or set him as inactive for this hand,
+skipping him during the round.
+
+This is instantiated for each player before a hand actually begins, prompting each player how much they would like to bet, giving
+them the option to skip. If all five skip, the dealer does nothing, and the hand number increments.
+
+Fields:
+
+-private BlackJackFrame parent; // reference to owning frame
+
+A reference to the parent BlackJackFrame of this object, which is just the only BlackJackFrame instantiated in the program.
+
+-private JPanel inputPanel;
+-private JPanel buttonsPanel; // panels that control the look of this dialog
+
+These two panels are local to the scope of this class, and not modified by an outside frame like other panels in this program.
+This is because their scope is purely local - they share information between each other. inputPanel contains the text field for the
+bet, and the buttonsPanel contains the buttons.
+
+-private JTextField betField; // field to enter bet
+
+This is the field where a player must enter his bet if he would like to join the round. Method check that what is input here is
+valid.
+
+-private JButton enterButton;
+-private JButton skipHandButton;   
+
+These two JButton objects provide the actions that a player can take; he can either press enter (the default button) to place
+the bet that is in betField (it checks that it is a valid value) or he can press skipHandButton and whatever is in betField,
+if anything, is irrelevant.
+
+Methods:
+
++public BetInputDialog(BlackJackFrame parent, boolean modal, int turnIndex)
+
+is the only allowed constructor, as the no-arg one is set to private and has no code. It takes in a reference to a parent frame,
+whether it should be set to modal, and which player is actually betting at this moment. The first just serves to set the instance
+variable above. Modal is a field meaning that, when true, the dialog must be disposed of in some fashion before further action
+can commence. turnIndex is a parameter that maintains which player (1-5) in the array list is currently betting. This value is
+passed to setButtonColors.
+
+-private void setButtonColors(int playerIndex)
+
+is a method that sets the colors of the buttons based on playerIndex. Every player has his own color, and the color of all buttons
+changes when his turn, whether betting or playing is over. This change allows players to easily understand that it is the next
+players turn, which is why this method exists. The title of this dialog also displays their name, but is more subtle. Thus, 
+depending on which index is passed (representing whose turn it is), the buttons are set to a certain color to represent this.
+
++public void actionPerformed(ActionEvent e)
+
+is an implementation of ActionListener that handles when enterButton or skipHandButton is clicked. If enter is clicked, the betField
+is tested to make sure it is a valid input. If so, then this goes back to the parent field to get its current player with the
+BlackJackFrame class's getCurrentPlayer method, closing the dialog afterwards. It then sets the bet of this object. If the input is 
+invalid, it will pop up a message dialog with JOptionPane and maintain operation. If skipHand is pressed, the box closes to move
+on to the next player and this player is set to inactive for the hand.
+
+
+The BlackJackFrame class:
+------------------------------------------
+
+This class is the main one of the entire program - it incorporates four different panels, a menu bar, the main game instance
+variables, and the logic for the main Blackjack game and its rules.
+
+// Panel instance variables
+-private GameTablePanel tablePanel;
+-private PlayerIngameDataPanel playersPanel;
+-private GameCommandsPanel commandsPanel;
+-private MessagesPanel messagesPanel;   
+
+These four variables hold references to the four panes that BlackJackFrame objects incorporate. The first is the table panel,
+which draws the image (see issues) as well as the cards for each player, in which player 1 is on the right, working all the way
+left to player 5. playersPanel holds the betting limit, the hand number, and the bet/money information for each player. The
+commandsPanel contains all of the action buttons that are duplicated in the menu bar of the program. The messages panel simply
+updates what is going on, either announcing what a player has just done as an action on his hand or whose turn it is. Their
+information is obviously shared within this frame.
+
+// Game instance variables
+-private ArrayList<BlackJackPlayer> players;
+
+is the main list of players for the game. An ArrayList was chosen for its efficiency that quickly obtained elements from a list
+through random-access, constant time operations. This list is traversed each time for obtaining a bet, printing out an element
+(player's information), or asking the user for a command, either one that dictates the action for a hand, or an action for whether
+to bet or skip the hand or quit the game entirely (in this case he is removed from the list). When this list is empty, as in every
+player has quit the game, the program exits.
+ 
+-private BlackJackPlayer currentPlayer;
+
+is a reference variable used by multiple methods in this file as a sort of iterator that will handle each player when it points to
+a particular individual. It is set back to the beginning of the players ArrayList after each completed hand.
+
+-private BlackJackPlayer dealer;  
+
+represents the dealer who is not part of the ArrayList, as it has his own methods to worry about, like manageDealer, a method that
+relies entirely on this variable. It is kept separate because in order to remove a player from the game via "quitting", an iterator
+must be used with the remove() method - if the dealer were to be kept inside the ArrayList, it would be treated as a player, and
+would be prompted for a bet and for action, when it should actually be automated by class methods.
+  
+-private Deck gameDeck;
+
+is the "shoe", another term for a "collective deck full of individual decks". It contains every card of either 2, 4, or 6 standard
+card decks. Although jokers are supported by the deck class, they are not included in standard Blackjack. Cards are removed from
+the deck when a user gets a hand or when the dealer does. After a hand is complete, all cards are set face up and returned to the
+pile. In the GUI version to come, they will be set face down, for obvious reasons, but for now, the easiest and most efficient way
+to maintain the face properties of cards is to keep them face up and "turn over" the card this is first dealt to the dealer so it
+can be secret.
+
+These are taken from HW2, and the data structure of the program, players, contains all players that are entered from the
+beginning dialogs. currentPlayer is a reference variable that iterates through the players, maintaining the same player
+throughout that player's turn, so there is an easy way to access his data. dealer is just another player separate from the other
+ones because it has no input actions; it represents the dealer's hand, drawn at the top. gameDeck holds all the cards - its size
+depends on the number of decks entered in the BlackJackIntroDialog dialog.
+
+-private int numberOfPlayers;
+
+represents the number of players that are participating in the game at startup.
+
+-private int numberOfDecks;
+
+is the number of decks that is inputted by the users of this game. This is passed to the BlackJackGame constructor and then
+initialized in this variable. A player can choose between 2, 4, and 6 decks.
+
+-private int bettingLimit;
+
+is what is given from the inputted variable in the BlackJack.java file. There, a user inputs what the limit is, and this is passed
+into the constructor that initializes this variable.
+
+-private int currentHandNumber;
+
+represents how many hands have been played - just a class counter
+
+These above are also from HW2 - they hold the main blackjack game operations and data, as this is one of the two responsibilities of
+this class.
+
+// Menu instance variables
+-private JMenuBar mainMenuBar;
+
+-private JMenu gameMenu;
+-private JMenu playerActionsMenu;
+
+-private JMenuItem exit;
+-private JMenuItem hit;
+-private JMenuItem stand;
+-private JMenuItem doubleDown;
+-private JMenuItem split;
+-private JMenuItem surrender;
+-private JMenuItem view;
+
+These are all parts of the menu bar at the top of the screen. There are two actual menus: Game, whose only function is to
+exit the program, and Actions, which contains the same actions that are in the GameCommandsPanel - that of controlling the
+hand via player input.
+
++public BlackJackFrame()
+
+creates the frame and all of the panels that are associates with it. In addition, it handles the progress of the preceding dialog
+boxes that come before it, obtaining their inputs to set the fields above. It mainly calls helper methods to instantiate
+most of the fields above. Finally, it calls mainGame() to get the actual game going.
+
+-private void initializePanels()
+
+instantiates the four panels, calling each of their specified constructors, passing itself as a reference to their 
+constructor parameters.
+
+-private void initializeLayout()
+
+sets the layout of this frame to a SpringLayout, as it is a very flexible layout to handle components of different lengths. Here,
+the top two panels are much taller than the bottom two, and this layout allows them to be of different widths, just focusing on the
+size of the panels in pixels and the relation to each other. It then adds these panels to the frame itself.
+
+-private void setPregameOptions(int numberOfPlayers, int numberOfDecks, int bettingLimit)
+
+sets the fields above based on these three parameters given from the BlackJackIntroDialog that is instantiated in this class's
+constructor.
+
+-private void setupMainMenuBar()
+
+instantiates the above menu items, creating their text, action listeners, mnemonics, etc. in order to fill the JMenuBar that is
+set in the constructor, to which this method serves as a helper function to initialize components.
+
++public ArrayList<BlackJackPlayer> getPlayers()
++public int getNumberOfPlayers()
++public int getBettingLimit()
++public int getCurrentHandNumber()
++public BlackJackPlayer getCurrentPlayer()
++public BlackJackPlayer getDealer()
+
+These are all getter methods that are self-explanatory - they just return the value or data inside their titles that are
+contained in the above instance variables.
+
++public void addPlayer(String name, String nickname, int moneyAmount)
+
+will add a player to the players arraylist with the three arguments which it takes to construct a new player. This is invoked
+by the PlayerRegistrationDialog class, sending these values from the panel to this class to create a player to be shared amongst
+all the panels.
+
++public void mainGame()
+
+is the principal method for the entire class. It first prompts each individual player, asking them whether they would like to bet,
+skip the upcoming hand, or quit the game entirely. If they choose to bet, it sets their bet and moves on to the next one. If a
+player specifies they want to skip this hand, they will be set as inactive for that round, and will be allowed no hands, betting,
+or any other action until the hand terminates. If they quit, the method removes them from the list entirely and moves on.
+
+Then, for every player in the list, it gives them cards, sets the default values for each player (such as their hand statuses), and
+invokes the manageGameActions method to get user input and commands for each hand. Once this ends, the method will check if the dealer
+needs to do anything (see the Casino Rules section below), let it perform actions on the hand if so, and then manage the scoring,
+calling manageScoring(). Finally, it cleans up after each player, returning their hands to the deck, and then shuffles the deck.
+In this casino, like many developing ones, there is a "continuous card shuffler" that shuffles the entire shoe after each hand
+played to prevent counting. The last step of the method is to check whether every player still has money. If any don't, it prompts
+each one about whether they would like to "purchase" new betting money, invoking promptToBuyMoreChips.
+
+-private void setTurnColors(int playerIndex)
+
+this method calls the methods of the Messages panel and the GameCommandsPanel to set the colors of their components based on
+which player index is specified in the parameter. These color changes help to denote when turns have ended and different players
+can now take their turn.
+
+-private void collectBets()
+
+is a helper method called by main game that creates BetInputDialog objects that will collect the bets, or inactive desires, of
+each player, setting their bets accordingly.
+
+-private void manageGameActions()
+
+processes player commands. First, it
+checks whether the dealer or current user (one it is testing for; it iterates through the ArrayList of players) has blackjack - if
+so, check if there is a tie, and process accordingly, skipping the rest of the entire method to move on to the payout or loss for
+each player (depending on who has the blackjack).
+
+Then, the method tests whether another hand should be processed (if the user split his hand) - if the first hand is done, then
+the current hand is set to the split one. Else, the method exits. If the current hand is the split one already, and this one is
+finished, the method returns so that mainGame can process each player for scoring and the dealer himself.
+
+-public void addCardToHand(Hand myHand)
+
+adds a BlackJackGUICard to the specified hand in the parameter.
+
+-private void setMessage(String s)
+
+sets the text of the Messages panel - it is just a helper method that calls that class's method to set its text. But the importance
+is that this class helps to share data - when action occurs in the commands panel, for instance, it sends data to the frame which
+by this method is sent to the messages panel and so on.
+
+-private void updateFields()
+
+is another helper method that calls the method of the PlayerIngameDataPanel class. Its effect is just like the method above.
+
++public void playerHits()
++public void playerStands()
++public void playerDoublesDown()
++public void playerSplits()
++public void playerSurrenders()
+
+represent what occurs when the corresponding actions are taken by players - they are invoked by the menu and by the commands panel
+buttons.
+
++public void toggleHandView()
+
+switches which hand is currently in view for the player to modify: the split hand or the original hand. Obviously, the player
+must have split hands first for this to even work.
+
+-private void manageDealer()
+
+provides the implementation for the dealer actions - as long as it has under 17 as a score, it must continue to hit. It also tests
+for blackjack and for when the dealer may bust (if it has over 21). It prints out each step, according to redrawDealerCards.
+
+-private void redrawDealerCards()
+
+is a helper method that draws the dealer cards on the screen and puts a delay in between so players can see step by step, as in
+a real casino, what value of cards the dealer has.
+
+-private void manageScoring()
+
+provides the implementation for standard Blackjack scoring, specified below in the Casino Scoring section. It compares any active
+hands for each player (ones that haven't busted or been surrendered) against that of the dealer and either takes away the player's
+bet if he lost, or provides payout to that player if he won. Finally, this prints out items in the HandResultsDialog that it
+instantiates after each hand has finished.
+
+-private boolean promptToBuyMoreChips(BlackJackPlayer p)
+
+is a method that checks if a user without any money ($0) would like to continue the game. It will first ask this question - if the
+player, p, declines, then it will return false, and this player will be removed from the list entirely in mainGame. Otherwise,
+it will ask him for how much he actually wants, give it to his player account, and keep him in the game, returning back to the
+normal execution flow.
+
++public void disableAllButtons()
++public void resetAllButtons()
++public void disableDoublingDown()
++public void enableDoublingDown()
++public void disableSplitting()
++public void disableSurrendering()
++public void disableViewToggle()
++public void enableViewToggle()
+
+All of these are methods to control whether certain actions are enabled or disabled, according to the casino rules specified in
+readme - they are invoked when one of these restrictions applies. The top method is used after all players are done, so they
+don't interrupt the dealer, and the second method is called before each player's turn so that his options are reset to the same
+as those of the previous player before restrictions apply.
+
+*class MenuItemListener implements ActionListener
+
+simply implements ActionListener for all of the menu items. It tests to see if any menu item was clicked (see the items above), and
+if one was, do the corresponding method/action.
+
+
+The BlackJackGUICard.java file
+------------------------------------
+
+This is a subclass of the Card.java class and simply adds functionality for images.
+
+Fields:
+-private static final int CARD_WIDTH = 73, CARD_HEIGHT = 97; // dimensions of each card
+ 
+These constants represent the image width and height, used for drawing the cards in the GameTablePanel of the BlackJackFrame class.
+   
+-private Image cardImage; // card images
+
+represents the image that the front of the card takes on, initialized in the constructor.
+
+-private Image backsideImage;
+
+represents the image that the back of the card takes on, initialized in the constructor
+   
+-private StringBuilder fileLocation; // where to look for the images
+
+this is a StringBuilder because it needs text appended to it - it first receives a location, then a file name, and then an extension.
+The StringBuilder class helps maintain the speed and flexibility needed by the image finding.
+
+Methods:
+
++public BlackJackGUICard(int suit, int value, String cardRepresentation)
+
+is the constructor that creates a card with the following values, calling the Card superclass constructor of the same form. Then,
+using these values it finds the image in a hardcoded directory and sets the front and back image of the card in question.
+
++public BlackJackGUICard(Card c)
+
+has the same functionality as the above constructor, but it creates a GUI card from a Card object passed in (essentially, creates
+a GUI card out of a normal card with the values inherent in the card)
+
++public Image getFrontImage()
++public Image getBackImage()
+
+are getter methods to return the images of the front and back of the card. These are used in the drawing area of GameTablePanel
+
++public static int getWidth()
++public static int getHeight()
+
+are getter methods to return the above constants (they are static because they apply to every member of this class)
+
++public void knockDownAceValue()
++public void knockUpAceValue()
+
+are methods that change the value of an ace, allowing it to represent 1 or 11 as needed. When the value is too high, the ace
+value is dropped down to one. These are invoked in the hand class in determining the total value of a hand (dependent on the other
+values of the cards in the hand)
+
+
+The BlackJackIntroDialog.java file:
+---------------------------------------------
+
+This handles the initial input that players must give: the number of players joining, the number of decks to put in the shoe,
+and the betting limit to set. All of these are passed back to the BlackJackFrame that owns this dialog box.
+
+Fields: 
+-private JComboBox numberOfPlayersBox; // select how many players to insert in the game (1-5)
+
+holds five entries that represent the number of players. This swing component was chosen because a player MUST choose one of these,
+forcing the input to be correct every time. 
+
+-private ButtonGroup numberOfDecksButtons; // how many decks to use
+-private JRadioButton twoDecksButton;
+-private JRadioButton fourDecksButton;
+-private JRadioButton sixDecksButton;
+
+these all represent how many decks a game can have, placed into a ButtonGroup so only one may be selected. Since one is set to
+true as the default of the program, one of these buttons is always selected, forcing correct input.
+
+-private JTextField bettingLimitField;
+
+is a text field with the default value of 1000. It represents how much the betting limit of this game should be. This input is
+checked, unlike the others, as it is necessary here.
+
+-private JButton okButton; // the default button
+-private JButton cancelButton;
+
+are the buttons to control what happens. OK will close this box and return back to the BlackJackFrame that owns it; cancel
+will exit the program.
+
+-private JPanel entriesPanel; // panels to contain all the components
+-private JPanel buttonsPanel;
+-private JPanel deckButtonsPanel;
+
+are the panels used to hold these components, helping to make the layout of this dialog box better.
+
+-private BlackJackFrame owner; 
+
+is a reference back to the original frame for data to be shared with it. The following values represent the shared data passed back:
+
+-private int numberOfPlayers = 0;
+-private int numberOfDecks = 0;
+-private int bettingLimit = 0;
+
+Methods:
+
++public BlackJackIntroDialog(BlackJackFrame parent, boolean modal)
+
+constructs a new dialog, calling the following helper methods to make the dialog look most feasible and appeasing to the user.
+It adds all of the components to its content pane, and when it returns, it allows the parent frame to retrieve the data.
+
+-private void initializePanels()
+-private void initializeComboBox()
+-private void initializeButtonGroup()
+-private void initializeTextField()
+-private void initializeButtons()
+
+are all the helper methods called by the constructor to initialize the above fields.
+
++public int getNumberOfPlayers() 
++public int getNumberOfDecks()
++public int getBettingLimit()
+
+are all getter methods called by the owner frame so that this data is correctly shared. These are called after the constructor
+terminates so the data is correctly sent back.
+
+*class ButtonListener implements ActionListener
+
+This inner class manages the OK and Cancel buttons. When cancel is pressed, the program exits.
+When OK is pressed, it obtains all the entries from the three data areas, checking the text field's input only to make sure 
+a bogus value was not entered as the betting limit. If everything is OK, it closes, still running in the program for the owner
+frame to obtain its input values; else, it alerts the user that the betting limit is not valid.
+
+
+The BlackJackSplashScreenDialog.java file:
+---------------------------------------------
+
+represents the opening splashscreen whose image is not appearing in Unix (see Issues section). It has been commented out, yet
+still included, but its fields will not be described here, as it is not part of the main program.
+
+
+The ClosingListener.java file:
+---------------------------------------------
+
+implements WindowListener and is used in a lot of dialog classes in the program - it only implements one method: windowClosing, so
+that when a user hits the "X" in the upper right hand corner of the dialog boxes, the program responds with what is most
+intuitive: exiting the program. windowClosing, therefore, is only implemented with System.exit(0);
+
+
+The GameCommandsPanel.java file:
+----------------------------------------------
+
+manages all ingame actions of the player during a hand. This file's data and methods correspond to the actions caused in the 
+Actions menu of the main frame. This is the bottom left panel of the main frame, and its actions trigger changes in the others.
+
+Fields:
+
+-private BlackJackFrame owner;
+
+holds a reference to the parent frame, with which it can share information with the other panels.
+
+-private JButton hit, stand, doubleDown, split, surrender;
+-private JButton toggleHandView;
+
+are all buttons that correspond to their counterparts in the Actions menu. They are included to provide an alternative way of
+player actions during a hand. See BlackJackFrame.java and above for their meaning.
+
+Methods:
+
++public GameCommandsPanel(BlackJackFrame owner)
+
+constructs a new panel with the frame as the owner of this panel so information can be shared (button events, mostly). It also
+sets its minimum and preferred size so SpringLayout can easily display this object in a correctly sized BlackJackFrame.
+
+-private void initializeButtons()
+
+is a helper method to the constructor that creates the buttons and sets their color to default white.
+
++public void setButtonColors(int index)
+
+sets the color of all the buttons of this panel simultaneously, based on whose turn it is. This is specified in index as the
+parameter.
+
++public void setHitButtonEnabled(boolean value)
++public void setStandButtonEnabled(boolean value)
++public void setDoubleDownButtonEnabled(boolean value)
++public void setSurrenderButtonEnabled(boolean value)
++public void setSplitButtonEnabled(boolean value)
++public void setViewButtonEnabled(boolean value)
++public void setViewButtonText(String text)
+
+toggles whether the corresponding buttons can be pressed or not, based on the same conditions that would enable or disable them
+in BlackJackFrame, as it holds the rules and restrictions of the casino.
+
+*class CommandListener implements ActionListener
+
+This inner class dictates the actions done by each of these buttons, which match those in the BlackJackFrame parent, so it just
+calls those methods (the same ones called by the menu buttons)
+
+
+The GameTablePanel.java file:
+---------------------------------------
+
+This panel represents where all the drawing occurs - the blackjack table image and chips (see Issues section), as well as the cards.
+Through its owner frame, BlackJackFrame, it sends and receives information with the events and data of the other panels.
+Unfortunately, since the table and chip images were not able to be displayed in Unix, they are not shown, but still included,
+as they do work in several other environments.
+
+Fields:
+
+private BlackJackFrame owner;
+
+represents the BlackJackFrame with which this class shares data and events so panel events are synched with the other ones it has
+
+private ImageIcon tableImageIcon;
+private Image tableImage; // image of the blackjack table
+private ImageIcon yellowChipIcon, redChipIcon, blueChipIcon, blackChipIcon, orangeChipIcon, whiteChipIcon;
+private Image yellowChipImage, redChipImage, blueChipImage, blackChipImage, orangeChipImage, whiteChipImage;
+
+represents the images (not able to be displayed in Unix, unfortunately) of the table drawn and modified by me, as well as the
+chip images obtained from their respective ImageIcons.
+
+Methods:
+
++public GameTablePanel(BlackJackFrame owner)
+
+constructs a new panel with the appropriate size (980x570) and calls create images to initialize them based on hardcoded locations.
+
+-private void createImages()
+
+constructs the image fields from the location specified, although they cannot be properly displayed in Unix.
+
+#protected void paintComponent(Graphics g)
+
+overrides the paintComponent method of the JComponent class to be able to draw the images like the cards, chips, and table.
+This takes in the graphics context of this panel and first draws what is usually drawn for a panel (calling the super.paint
+Component method) and then draws the appropriate graphics where indicated.
+
++public void drawDealerCards(Graphics g) throws NullPointerException
+
+draws the dealer cards out at the correct location when specified - it takes the graphics context of paintComponent (of the panel)
+and displays the appropriate cards from the dealers hand, achieved by a reference to the BlackJackFrame that holds the dealer. It
+is public so this frame may invoke the drawing step by step to show players what actions the dealer takes instead of just trying
+to understand what happened.
+
+-private void drawPlayerCards(Graphics g)
+
+draws all the cards in the hands of a player, adjusting the (x,y) coordinates each time a card is drawn so that all may be seen
+in the best possible way.
+
+-private void drawCard(Graphics g, int x, int y, BlackJackGUICard c) throws NullPointerException
+
+is a helper method to the above two methods that draws a card image specified in c at the location (x,y) - it throws an exception
+if the card does not exist.
+
+-private void drawChips(Graphics g)
+
+is a helper method that draws out chips according to what the player has bet. For instance, a $1005 bet value would draw a 1000
+chip and a 5 chip for that player, representing which "place values" are involved in this bet.
+
+
+The HandResultsDialog.java file:
+----------------------------------------
+
+This is a simple dialog that pops up with the results of every player's hand after a round has ended. It asks whether the players
+would like to continue to another hand or exit the game.
+
+Fields:
+
+-private BlackJackFrame owner; // reference to owner frame
+
+represents the frame parent of this dialog that contains this.
+
+-private JTextArea resultsText;
+-private JScrollPane scrollPane; // to display the results
+
+These display the results - their text is modified to how each player's hand(s) went in the round.
+
+-private JButton confirmButton;
+-private JButton exitButton; // button objects
+
+These buttons prompt for the next user action. He can either continue to another hand with the others, or exit the game entirely.
+
+Methods:
+
++public HandResultsDialog(BlackJackFrame owner, boolean modal)
+
+is the constructor that creates and displays a new dialog box, with the reference to the parent from from which it gets its details.
+It is invoked in manageScoring of the BlackJackFrame class and its text is set inside that method and by the following method.
+
++public void addText(String text)
+
+Adds text to the JTextArea that is contained inside the scroll pane, so that all data can be seen effectively. It just calls
+the append() method of JTextArea to insert the text specified in the parameter into this pane.
+
++public void actionPerformed(ActionEvent e)
+
+This class implements ActionListener for the two buttons above, and this responds to these buttons, closing the dialog box
+and continuing if the user hits Next Hand or exiting the program if Exit Game is pushed.
+
+
+The MessagesPanel.java file:
+---------------------------------------
+
+This is just a small panel on the bottom right corner of the BlackJackFrame display area. It simply describes actions that each
+player takes right after they do them (like a history), and alerts when the next player's turn commences. It's text color matches
+the current player's color.
+
+Fields:
+
+-private BlackJackFrame owner;
+
+represents the BlackJackFrame that controls this panel via input from other panels and actions.
+    
+-private JLabel messages;
+
+holds the messages caused by other events or changes and displays them so players know what has occurred.
+
+Methods:
+
++public MessagesPanel(BlackJackFrame owner)
+
+constructs a new message panel with blank text inside its message. It remains this way until it is changed by the following
+methods invoked inside BlackJackFrame.
+
++public void setMessage(String text)
+
+sets the message text to what the frame dictates through the parameter, alerting player actions or turn changes.
+
++public void setTextColor(int index)
+
+sets the color of the text according to whose turn it is; this color matches not only the player in PlayerIngameDataPanel, but
+also the color of the buttons so everyone clearly knows whose turn it is.
+
+
+The PlayerDisplayPanel.java file:
+---------------------------------------------
+
+This panel is the bottom part of PlayerRegistrationDialog, displaying all players that have been registered in PlayerInputPanel.
+The dialog exchanges information between these two panels.
+
+Fields:
+
+private PlayerRegistrationDialog owner;
+
+Like all other owner fields, this one has a reference to the dialog that owns it, helping to exchange data and events with
+PlayerInputPanel.
+    
+private JScrollPane scrollableTextArea;
+private JTextArea playersData; // objects to display the players
+
+are the fields that hold the displayed players' information: their name, nickname, and initial amount of money.
+
+private ArrayList<BlackJackPlayer> players;
+
+is just a REFERENCE to the actual data structure stored in the BlackJackFrame - it points to this data structure via the
+constructor. This exists to access the data that the PlayerInputPanel created for the actual BlackJackFrame.
+
+Methods:
+
++public PlayerDisplayPanel(PlayerRegistrationDialog owner, ArrayList<BlackJackPlayer> players)
+
+creates a new instance of this panel and sets the according parameters to the instance fields. It initializes all GUI components.
+
++public void displayPlayers()
+
+iterates through the reference's structure to display the mentioned data about each player.
+
+
+The PlayerIngameDataPanel.java file:
+------------------------------------------
+
+This is the tall right-side panel of BlackJackFrame that displays the betting limit, the hand number, and all of the players'
+information, including their current money, bets, and results of their hands, as well as the hand scores.
+
+Fields:
+
+-private BlackJackFrame owner;
+
+references BlackJackFrame so it can send and receive information based on events of the panels.
+    
+-private JTextArea informationArea;
+-private ArrayList<JTextArea> playerStatLabels;
+
+These hold the betting limit & hand number and all the information about all players, respectively. The size of the second is
+equal to the number of players in the game. When a player leaves, his corresponding box is erased.
+
+Methods:
+
++public PlayerIngameDataPanel(BlackJackFrame owner)
+
+constructs a new panel with a reference to the owner and instantiates all of the JTextAreas where information can be displayed.
+
++public void updateFields(ArrayList<BlackJackPlayer> players)
+
+iterates through all of the existing JTextAreas in the arraylist and updates them according to what players do - this is called
+after every action a player takes, so all understand what is going on step by step. It is invoked often in BlackJackFrame after
+an event is received from another area.
+
++public void updatePlayerStatus(int index, String status)
++public void updatePlayerSplitStatus(int index, String status)
+
+These update the performance and outcome of a player and his hand once his turn ends - these correspond to his hands and are
+invoked by the BlackJackFrame class.
+
++public void setInformation(String text)
+
+sets the text in the informationArea JTextArea, updating the bettingLimit at the beginning, and the hand number after every round
+terminates.
+
+
+The PlayerInputPanel.java file:
+-------------------------------------------
+
+This file handles inputting all of the players that were specified to be included in the BlackJackIntroDialog. It inserts them
+into the BlackJackFrame's arraylist of players after their data is validated.
+
+-private JButton enterPlayer, clearEntries;
+-private JButton startGame; // starts the game w/o as many players as intended
+
+are the buttons that can add a player, clear the entries, or start the game with less players than intended if needbe
+
+-private JTextField nameField; // name fields
+-private JTextField nicknameField;
+-private JTextField moneyField;
+
+are the fields in which to enter the player data - his data matches their names.
+
+-private JLabel nameMessage;
+-private JLabel successMessage;
+-private JLabel moneyMessage; // the messages that display whether the entries were existent and valid
+
+Display whether a field is invalid or whether a player was successfully added.
+
+-private PlayerRegistrationDialog owner;
+
+A reference to the owning dialog so it and PlayerDisplayPanel can share data.
+
+Methods:
+
++public PlayerInputPanel(PlayerRegistrationDialog owner)
+
+is the constructor that creates this panel with a reference to the owning dialog and calls the below helper methods.
+
+-private void setupFields()
+-private void setupButtons()
+-private void setupMessageLabels()
+
+are all helper methods to the constructor to create all of the GUI objects this panel needs to function.
+
+-private void clearDataEntries()
+
+clears all of the JTextField components - invoked after a player is inserted successfully.
+
+*class ButtonListener implements ActionListener
+
+is the inner class that handles the three GUI buttons. If a user hits Add player, all of the input is validated, especially
+the money field, and if this is all valid, the player is inserted, else, it sets the message labels to alert the current user
+to the failure to add. If he hits clear entries, all entries are cleared, so one may start over. The start game button
+will ask the players in if they would like to start the game with fewer players than intended (if one left). If there are no
+players, this button will alert the users and not continue on.
+
+
+The PlayerRegistrationDialog.java file:
+----------------------------------------------
+
+This contains the PlayerDisplayPanel and PlayerInputPanel, serving to share data between them.
+
+Fields:
+
+-private PlayerInputPanel inputPanel;
+-private PlayerDisplayPanel displayPanel;
+
+are the panels it contains to share the data between them.
+
+-private int numberOfPlayersRegistered; // fields that determine whether this dialog has completed its task
+-private int numberOfPlayers;
+
+represent how many players are expected to register and how many actually have, so it can inform the users of how many are missing
+in the dialog's title.
+
+-private BlackJackFrame ownerFrame;
+
+is a reference to the parent frame that holds the players arraylist.
+
+Methods:
+
++public PlayerRegistrationDialog(BlackJackFrame ownerFrame, int numberOfPlayers, ArrayList<BlackJackPlayer> players)
+
+is the constructor that initializes the panels and passes players as a reference to the PlayerDisplayPanel from BlackJackFrame
+so it may display all players that are instantiated from PlayerInputPanel.
+
++public void displayPlayers()
+
+calls the displayPlayers() method in PlayerDisplayPanel - just a higher level helper method.
+
++public BlackJackFrame getOwnerFrame()
+
+returns a reference to the parent frame of this dialog box.
+
++public void addPlayer()
+
+adds a player to the list and increments how many players have been registered. If all are there, alert that the process
+was successful, and close the dialog box, disposing of it.
+
+
+Testing:
+-----------------------------------------------------------------
+
+A lot of testing was easy to do without separate code.
+
+For instance, all of the classes that extended JDialog, namely BetInputDialog, BlackJackIntroDialog, BlackJackSplashScreenDialog,
+HandResultsDialog, and PlayerRegistrationDialog didn't even need their own classes. All these classes needed for testing was to
+put a main method inside and instantiate an object of that type. Their invoked class ClosingListener didn't actually have a
+separate test class either, as it only had one implemented method that was tested by each of these dialogs.
+
+BlackJackFrame was tested the last time in HW2, as all the game logic was figured out there.
+
+The panels were also all tested individually, and then done as a group during the actual programming of the game itself. For
+instance, to test the panels of BlackJackFrame individually, I just created a frame the size of the panels and hardcoded some
+things that would change its methods.
+
+As a group, they were then tested in the entities to which they belong. GameTablePanel, MessagesPanel, PlayerIngameDataPanel,
+and GameCommandsPanel were all tested during the development of BlackJackFrame.
+
+PlayerDisplayPanel and PlayerInputPanel were tested with PlayerRegistrationFrame.java, a separate class not part of the game
+itself. The change I made afterward as to make the owner parameter of both of these panels by BlackJackFrame specific, since
+it was the only panel that would need them. Regardless, one can see this test by changing the parameter of these two panels
+to JFrame instead of BlackJackFrame.
+
+BlackJackGUICard was tested just by displaying it in the GameTablePanel with drawCard. The only addition that made it different
+from a concrete Card object was that it included a front side image and a back side image. The Card image had already been tested
+in HW1 and HW2; thus, the only testing required for this class was just to draw it and make sure it had the right value intrinsic
+to it. This was done by drawing it inside GameTablePanel.
+
+rep
+Thus, the only included test class is RegistrationFrame.java, as it exemplifies how the panels were tested. To test the dialog
+classes, one just has to add a main method to their code that instantiates them. BlackJackFrame was just a component of these
+tested panels, and its game logic was already tested during HW1 and HW2.
+
+
+Issues:
+-----------------------------------------------------------------
+
+The one issue I had in developing this was the images. When I compiled the project with Netbeans, the program displayed images
+drawn in panels by paintComponent(Graphics g) just fine. I added these images to Unix, but, to no avail, the table background,
+splashscreen, and chip images did not draw successfully. However, I have still included them in the submit directory just in case
+there is some issue I am missing. (the card images draw fine)
+
+Because of this, the BlackJackSplashScreenDialog instantiation in BlackJackFrame was commented out, so the game could just progress
+onward. However, in spite of this problem, the rest of the game works as planned.
+
+

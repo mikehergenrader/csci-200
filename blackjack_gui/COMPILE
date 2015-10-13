@@ -1,0 +1,18 @@
+Michael Hergenrader
+CSCI 200 Fall 2009
+10/11/09
+USCID: 5048471246
+HW3: Blackjack GUI program
+
+To compile this program, type or copy the following line into the command line:
+
+javac Blackjack.java BetInputDialog.java BlackJackFrame.java BlackJackGUICard.java BlackJackHand.java BlackJackIntroDialog.java
+      BlackJackPlayer.java BlackJackSplashScreenDialog.java Card.java ClosingListener.java Deck.java GameCommandsPanel.java
+      GameTablePanel.java Hand.java HandResultsDialog.java MessagesPanel.java PlayerDisplayPanel.java PlayerIngameDataPanel.java
+      PlayerInputPanel.java PlayerRegistrationDialog.java
+
+To run the program, simply type or copy the following line:
+
+java Blackjack
+
+The splashscreen dialog should appear, starting the game.
